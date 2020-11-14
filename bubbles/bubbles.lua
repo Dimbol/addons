@@ -6,7 +6,7 @@
 
 _addon.name = 'bubbles'
 _addon.author = 'wes'
-_addon.version = '0.4'
+_addon.version = '0.4.1'
 _addon.command = 'bubbles'
 
 require('bit')
@@ -25,6 +25,7 @@ defaults = {}
 defaults.faux_party_chat = false
 defaults.party_hud = {}
 defaults.party_hud.enabled = true
+defaults.party_hud.show_dist = true -- show distances for out of range bubbles
 defaults.party_hud.text_settings = {}
 defaults.party_hud.text_settings.pos   = {x = -130, y = 45}
 defaults.party_hud.text_settings.bg    = {alpha = 150}
@@ -186,6 +187,7 @@ end
 function update_active_bubbles()
     local party = windower.ffxi.get_party()
     local player = windower.ffxi.get_mob_by_target('me')
+    if not party or not player then return end -- sometimes these are nil, eg, when moving between omen floors
     local now = os.time()
 
     -- first, scan the party for new luopans and expired bolsters
@@ -231,7 +233,8 @@ function update_active_bubbles()
 
     -- next, clean up the table
     for name, bubs in pairs(active_bubbles) do
-        if bubs.trust_member and bubs.Indi and bubs.Indi.start_time + 300 < now then
+        local sylvie_indi_dur = 360
+        if bubs.trust_member and bubs.Indi and bubs.Indi.start_time + sylvie_indi_dur < now then
             bubs.Indi = nil -- trusts do not have visibile indicolures
         end
 
@@ -296,7 +299,10 @@ function update_party_hud(party, player)
     -- <colorized_member_name> :[<redundant_mark>][<ja_mark>]<colorized_colure>[?][<colorized_distance>]
     if not bubble_list:empty() then
         local redundancies = redundant_debuff_effects()
-        local target = windower.ffxi.get_mob_by_index(windower.ffxi.get_player().target_index or 0)
+        local target
+        if settings.party_hud.show_dist then
+            target = windower.ffxi.get_mob_by_index(windower.ffxi.get_player().target_index or 0)
+        end
 
         local lines = bubble_list:map(function(bub)
             local member  = bub.member
@@ -342,32 +348,35 @@ function update_party_hud(party, player)
             )
 
             local dist_string = ''
-            local distance = nil
-            local padding = max_colure_length - bub.type:length() - effect:length() + (assumed and 0 or 1)
-            if debuff then
-                if target and target.valid_target and target.is_npc and target.id%4096<2048 then
-                    -- player is targetting a monster
+            if settings.party_hud.show_dist then
+                local distance
+                local padding = max_colure_length - bub.type:length() - effect:length() + (assumed and 0 or 1)
+
+                if debuff then
+                    if target and target.valid_target and target.spawn_type == 16 and target.hpp > 0 then
+                        -- player is targetting a monster
+                        if bub.type == 'Indi' then
+                            distance = math.sqrt((target.x-member.x)^2 + (target.y-member.y)^2 + (target.z-member.z)^2)
+                        elseif luopan then
+                            distance = math.sqrt((target.x-luopan.x)^2 + (target.y-luopan.y)^2 + (target.z-luopan.z)^2)
+                        end
+                        if distance and distance > 6 + target.model_size/2 then
+                            -- debuff bubble too far from target
+                            if distance < 10 then padding = padding + 1 end
+                            dist_string = ('\\cs(255,0,0)%' .. padding .. 's(%.1f)\\cr'):format('', distance)
+                        end
+                    end
+                elseif member.in_party then
                     if bub.type == 'Indi' then
-                        distance = math.sqrt((target.x-member.x)^2 + (target.y-member.y)^2 + (target.z-member.z)^2)
+                        distance = member.distance:sqrt()
                     elseif luopan then
-                        distance = math.sqrt((target.x-luopan.x)^2 + (target.y-luopan.y)^2 + (target.z-luopan.z)^2)
+                        distance = luopan.distance:sqrt()
                     end
-                    if distance and distance > 6 + target.model_size/2 then
-                        -- debuff bubble too far from target
+                    if distance and distance > 6.3 then
+                        -- buff bubble too far from player
                         if distance < 10 then padding = padding + 1 end
-                        dist_string = ('\\cs(255,0,0)%' .. padding .. 's(%.1f)\\cr'):format('', distance)
+                        dist_string = ('\\cs(255,255,0)%' .. padding .. 's(%.1f)\\cr'):format('', distance)
                     end
-                end
-            elseif member.in_party then
-                if bub.type == 'Indi' then
-                    distance = member.distance:sqrt()
-                elseif luopan then
-                    distance = luopan.distance:sqrt()
-                end
-                if distance and distance > 6.3 then 
-                    -- buff bubble too far from player
-                    if distance < 10 then padding = padding + 1 end
-                    dist_string = ('\\cs(255,255,0)%' .. padding .. 's(%.1f)\\cr'):format('', distance)
                 end
             end
 
