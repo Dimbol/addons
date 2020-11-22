@@ -6,7 +6,7 @@
 
 _addon.name = 'bubbles'
 _addon.author = 'wes'
-_addon.version = '0.4.1'
+_addon.version = '0.4.2'
 _addon.command = 'bubbles'
 
 require('bit')
@@ -43,7 +43,17 @@ active_bubbles = T{}
 previous_bubbles = T{}
 
 -- textbox listing active bubbles, one per line
-party_hud = texts.new('', settings.party_hud.text_settings)
+party_hud = texts.new('', table.copy(settings.party_hud.text_settings))
+
+-- the width of a distance in the party_hud textbox may vary with font and font size
+-- an offscreen textbox is created to find out what that width is at runtime (assuming the font is monospace)
+-- party_hud is shifted right by this width when distances are shown, so that the words within the textbox appear stationary
+if settings.party_hud.text_settings.flags.right then
+    local offscreen_settings = table.copy(settings.party_hud.text_settings)
+    table.update(offscreen_settings, {flags = {bottom = false}, pos = {y = -100}}, true)
+    offscreen = texts.new(' (9.9)', offscreen_settings)
+    offscreen:show()
+end
 
 death_message_ids = S{6,20,113,406,605,646}
 
@@ -304,6 +314,7 @@ function update_party_hud(party, player)
             target = windower.ffxi.get_mob_by_index(windower.ffxi.get_player().target_index or 0)
         end
 
+        local distance_shown = false
         local lines = bubble_list:map(function(bub)
             local member  = bub.member
             local luopan  = bub.bub.luopan
@@ -344,13 +355,13 @@ function update_party_hud(party, player)
                 bubble_enhancement_mark,
                 bubble_text_colors[effect],
                 bub.type, effect,
-                assumed and '?' or ''
+                assumed and '?' or ' '
             )
 
             local dist_string = ''
             if settings.party_hud.show_dist then
                 local distance
-                local padding = max_colure_length - bub.type:length() - effect:length() + (assumed and 0 or 1)
+                local padding = max_colure_length - bub.type:length() - effect:length()
 
                 if debuff then
                     if target and target.valid_target and target.spawn_type == 16 and target.hpp > 0 then
@@ -362,8 +373,9 @@ function update_party_hud(party, player)
                         end
                         if distance and distance > 6 + target.model_size/2 then
                             -- debuff bubble too far from target
-                            if distance < 10 then padding = padding + 1 end
+                            if distance < 9.95 then padding = padding + 1 end
                             dist_string = ('\\cs(255,0,0)%' .. padding .. 's(%.1f)\\cr'):format('', distance)
+                            distance_shown = true
                         end
                     end
                 elseif member.in_party then
@@ -374,8 +386,9 @@ function update_party_hud(party, player)
                     end
                     if distance and distance > 6.3 then
                         -- buff bubble too far from player
-                        if distance < 10 then padding = padding + 1 end
+                        if distance < 9.95 then padding = padding + 1 end
                         dist_string = ('\\cs(255,255,0)%' .. padding .. 's(%.1f)\\cr'):format('', distance)
+                        distance_shown = true
                     end
                 end
             end
@@ -383,11 +396,34 @@ function update_party_hud(party, player)
             return member_bubble_string .. dist_string
         end)
 
+        if settings.party_hud.text_settings.flags.right then
+            if distance_shown then
+                distance_pixel_width = distance_pixel_width or find_distance_pixel_width()
+                party_hud:pos_x(settings.party_hud.text_settings.pos.x + distance_pixel_width)
+            else
+                party_hud:pos_x(settings.party_hud.text_settings.pos.x)
+            end
+        end
+
         party_hud:text(lines:concat('\n'))
         party_hud:show()
     else
         party_hud:hide()
     end
+end
+
+function find_distance_pixel_width()
+    local distance_pixel_width = 0
+    if offscreen then
+        distance_pixel_width = offscreen:extents()
+        if distance_pixel_width > 0 then
+            distance_pixel_width = distance_pixel_width - 3 -- exclude width of borders, ignoring padding
+            offscreen:hide(); offscreen:destroy(); offscreen = nil
+        end
+    end
+    if distance_pixel_width == 0 then distance_pixel_width = 59 end -- works for defaults
+
+    return distance_pixel_width
 end
 
 function redundant_debuff_effects()
