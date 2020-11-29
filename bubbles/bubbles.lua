@@ -6,7 +6,7 @@
 
 _addon.name = 'bubbles'
 _addon.author = 'wes'
-_addon.version = '0.4.2'
+_addon.version = '0.4.3'
 _addon.command = 'bubbles'
 
 require('bit')
@@ -62,8 +62,8 @@ windower.register_event('incoming chunk', function(id, data)
         update_bubbles_from_action_packet(windower.packets.parse_action(data))
     elseif id == 0x029 then -- action message packet
         local message_id = data:unpack('H',0x19)%32768
-		if death_message_ids:contains(message_id) then
-			local target_id = data:unpack('I',0x09)
+        if death_message_ids:contains(message_id) then
+            local target_id = data:unpack('I',0x09)
             local mob = windower.ffxi.get_mob_by_id(target_id)
             if mob and mob.in_alliance then
                 -- member died; clear their bubbles
@@ -72,11 +72,11 @@ windower.register_event('incoming chunk', function(id, data)
         end
     elseif id == 0x037 then -- player update packet
         local player_id = data:unpack('I',0x25)
-        local indi_effect = bit.band(data:byte(0x59), 0x7F)
+        local indi_effect = bit.band(data:byte(0x59), 0x5F)
         update_bubbles_from_update_packet(player_id, indi_effect)
     elseif id == 0x00D then -- pc update packet
         local pc_id = data:unpack('I',0x05)
-        local indi_effect = bit.band(data:byte(0x43), 0x7F)
+        local indi_effect = bit.band(data:byte(0x43), 0x5F)
         update_bubbles_from_update_packet(pc_id, indi_effect)
     -- npcs do not have visible indi effects
     elseif id == 0x075 and data:unpack('I',0x1D) > 0 then -- timed battle start (eg, unity, geas fete, domain invasion)
@@ -181,7 +181,7 @@ function update_bubbles_from_update_packet(pc_id, indi_effect)
                     active_bubbles[pc.name].Indi = nil
                 end
             end
-        elseif pc.hpp > 0 then
+        elseif pc.hpp > 0 and likely_bubble_id_from_indi_effect[indi_effect] then
             active_bubbles[pc.name] = active_bubbles[pc.name] or {member_id = pc_id}
             if not active_bubbles[pc.name].Indi then
                 -- new indicolure; guess its type
@@ -212,8 +212,10 @@ function update_active_bubbles()
                         if not just_started_battle then
                             -- new luopan; guess its type
                             local likely_bub = bubble_info[likely_bubble_id_from_model[pet.models[1]]]
-                            active_bubbles[member.name].Geo = {effect = likely_bub.effect, debuff = likely_bub.debuff,
-                                                            start_time = now, assumed = true}
+                            if likely_bub then
+                                active_bubbles[member.name].Geo = {effect = likely_bub.effect, debuff = likely_bub.debuff,
+                                                                   start_time = now, assumed = true}
+                            end
                         end
                     elseif active_bubbles[member.name].Geo.Bolster then
                         -- expire luopan bolsters
