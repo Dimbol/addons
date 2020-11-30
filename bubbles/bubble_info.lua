@@ -1,6 +1,4 @@
-require('tables')
-
-bubble_info = T{
+bubble_info = {
     [768] = {type="Indi", effect="Regen",      debuff=false},
     [769] = {type="Indi", effect="Poison",     debuff=true},
     [770] = {type="Indi", effect="Refresh",    debuff=false},
@@ -63,15 +61,16 @@ bubble_info = T{
     [827] = {type="Geo",  effect="Gravity",    debuff=true},
 }
 
-bubble_jas = T{
+bubble_jas = {
     [343] = {name="Bolster", dur=210},
+    [377] = {name="Wide",    dur=60},
     [346] = {name="LE",      dur=0},
     [347] = {name="EA",      dur=0},
     [350] = {name="BoG",     dur=60},
 }
 
 -- these are utf-8 encodings for symbols (courier new supports these)
-bubble_ja_symbols = T{
+bubble_ja_symbols = {
     ["Bolster"] = string.char(0xE2,0x98,0xBB),  -- smiling face
     ["LE"]      = string.char(0xE2,0x98,0xBC),  -- empty circle with rays
     ["EA"]      = string.char(0xE2,0x80,0xA2),  -- filled bullet
@@ -79,7 +78,7 @@ bubble_ja_symbols = T{
 }
 
 -- colored by element
-bubble_text_colors = T{
+bubble_text_colors = {
     ["Regen"]      = '\\cs(200,200,200)',
     ["Poison"]     = '\\cs( 50,150,255)',
     ["Refresh"]    = '\\cs(200,200,200)',
@@ -114,7 +113,8 @@ bubble_text_colors = T{
 
 -- indicolures may be inferred from PC update and player update packets
 -- refer to indinope addon and packets/fields.lua
-likely_bubble_id_from_indi_effect = T{
+-- 0x80 bit shows job master stars, 0x20 bit is a flag for widened compass
+likely_bubble_id_from_indi_effect = {
     [0x50] = 779,   -- party fire       indi-fury?
     [0x51] = 781,   -- party ice        indi-acumen?
     [0x52] = 771,   -- party wind       indi-haste?
@@ -134,7 +134,8 @@ likely_bubble_id_from_indi_effect = T{
 }
 
 -- luopan type may be inferred from its model number, if the cast action is missed
-likely_bubble_id_from_model = T{
+-- can't seem to tell if widened compass is active from the mob structure's model info
+likely_bubble_id_from_model = {
     [2850] = 809,   -- party fire       geo-fury?
     [2851] = 811,   -- party ice        geo-acumen?
     [2852] = 801,   -- party wind       geo-haste?

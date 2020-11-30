@@ -72,11 +72,11 @@ windower.register_event('incoming chunk', function(id, data)
         end
     elseif id == 0x037 then -- player update packet
         local player_id = data:unpack('I',0x25)
-        local indi_effect = bit.band(data:byte(0x59), 0x5F)
+        local indi_effect = data:unpack('b7',0x59)
         update_bubbles_from_update_packet(player_id, indi_effect)
     elseif id == 0x00D then -- pc update packet
         local pc_id = data:unpack('I',0x05)
-        local indi_effect = bit.band(data:byte(0x43), 0x5F)
+        local indi_effect = data:unpack('b7',0x43)
         update_bubbles_from_update_packet(pc_id, indi_effect)
     -- npcs do not have visible indi effects
     elseif id == 0x075 and data:unpack('I',0x1D) > 0 then -- timed battle start (eg, unity, geas fete, domain invasion)
@@ -122,17 +122,13 @@ function update_bubbles_from_action_packet(act)
                                               or {member_id = (bub.type == 'Indi') and target_id or caster_id, trust_member = member.is_npc}
                 active_bubbles[member.name][bub.type] = {effect = bub.effect, debuff = bub.debuff,
                                                          entrusted_by = entrust and caster.name or nil, start_time = now}
-                if bub.type == 'Geo' then
-                    for _, ja in ipairs({'BoG','Bolster'}) do
+                if bub.type == 'Geo' or entrust and active_bubbles[caster.name] then
+                    local jas = bub.type == 'Geo' and {'BoG','Bolster','Wide'} or {'Bolster','Wide'}
+                    for _, ja in ipairs(jas) do
                         if active_bubbles[caster.name][ja] and now < active_bubbles[caster.name][ja].end_time then
                             active_bubbles[member.name][bub.type][ja] = true
                             if ja == 'BoG' then active_bubbles[caster.name][ja] = nil end
                         end
-                    end
-                elseif entrust then
-                    if active_bubbles[caster.name] and active_bubbles[caster.name].Bolster
-                    and now < active_bubbles[caster.name].Bolster.end_time then
-                        active_bubbles[member.name][bub.type].Bolster = true
                     end
                 end
                 previous_bubbles[caster.name] = previous_bubbles[caster.name] or {}
@@ -172,6 +168,10 @@ end
 
 function update_bubbles_from_update_packet(pc_id, indi_effect)
     if just_started_battle then return end
+
+    local wide  = bit.band(indi_effect, 0x20) ~= 0
+    indi_effect = bit.band(indi_effect, 0x5F)
+
     local pc = windower.ffxi.get_mob_by_id(pc_id)
     if pc and pc.in_alliance and pc.valid_target then
         if indi_effect == 0 then
@@ -181,15 +181,17 @@ function update_bubbles_from_update_packet(pc_id, indi_effect)
                     active_bubbles[pc.name].Indi = nil
                 end
             end
-        elseif pc.hpp > 0 and likely_bubble_id_from_indi_effect[indi_effect] then
+        elseif pc.hpp > 0 then
             active_bubbles[pc.name] = active_bubbles[pc.name] or {member_id = pc_id}
             if not active_bubbles[pc.name].Indi then
                 -- new indicolure; guess its type
                 local likely_bub = bubble_info[likely_bubble_id_from_indi_effect[indi_effect]]
+                if not likely_bub then return end
                 active_bubbles[pc.name].Indi = {effect = likely_bub.effect, debuff = likely_bub.debuff,
                                                 start_time = os.time(), assumed = true}
                 start_update_loops()
             end
+            active_bubbles[pc.name].Indi.Wide = wide
         end
     end
 end
@@ -251,7 +253,7 @@ function update_active_bubbles()
         end
 
         local ja_active = false
-        for _, ja in ipairs({'BoG','Bolster'}) do
+        for _, ja in ipairs({'BoG','Bolster','Wide'}) do
             if bubs[ja] then
                 if bubs[ja].end_time <= now then
                     bubs[ja] = nil
@@ -324,6 +326,7 @@ function update_party_hud(party, player)
             local debuff  = bub.bub.debuff
             local assumed = bub.bub.assumed
             local bolster = bub.bub.Bolster      or false
+            local wide    = bub.bub.Wide         or false
             local entrust = bub.bub.entrusted_by or false
 
             local bubble_enhancement_mark = ' '
@@ -373,7 +376,7 @@ function update_party_hud(party, player)
                         elseif luopan then
                             distance = math.sqrt((target.x-luopan.x)^2 + (target.y-luopan.y)^2 + (target.z-luopan.z)^2)
                         end
-                        if distance and distance > 6 + target.model_size/2 then
+                        if distance and distance > (6 * (wide and 2 or 1) + target.model_size/2) then
                             -- debuff bubble too far from target
                             if distance < 9.95 then padding = padding + 1 end
                             dist_string = ('\\cs(255,0,0)%' .. padding .. 's(%.1f)\\cr'):format('', distance)
@@ -386,7 +389,7 @@ function update_party_hud(party, player)
                     elseif luopan then
                         distance = luopan.distance:sqrt()
                     end
-                    if distance and distance > 6.3 then
+                    if distance and distance > (6 * (wide and 2 or 1) + 0.3) then
                         -- buff bubble too far from player
                         if distance < 9.95 then padding = padding + 1 end
                         dist_string = ('\\cs(255,255,0)%' .. padding .. 's(%.1f)\\cr'):format('', distance)
