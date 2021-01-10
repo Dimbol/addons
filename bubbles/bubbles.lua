@@ -6,7 +6,7 @@
 
 _addon.name = 'bubbles'
 _addon.author = 'wes'
-_addon.version = '0.4.3'
+_addon.version = '0.4.4'
 _addon.command = 'bubbles'
 
 require('bit')
@@ -27,7 +27,7 @@ defaults.party_hud = {}
 defaults.party_hud.enabled = true
 defaults.party_hud.show_dist = true -- show distances for out of range bubbles
 defaults.party_hud.text_settings = {}
-defaults.party_hud.text_settings.pos   = {x = -130, y = 45}
+defaults.party_hud.text_settings.pos   = {x = -189, y = 45}
 defaults.party_hud.text_settings.bg    = {alpha = 150}
 defaults.party_hud.text_settings.flags = {right = true, bold = true}
 defaults.party_hud.text_settings.text  = {size = 12, font = 'Courier New', stroke = {width = 1}}
@@ -310,7 +310,7 @@ function update_party_hud(party, player)
     end)
 
     -- then add a line to the text box for each bubble with the following format
-    -- <colorized_member_name> :[<redundant_mark>][<ja_mark>]<colorized_colure>[?][<colorized_distance>]
+    -- <colorized_member_name> :[<ja_mark>]<colorized_colure>[?][<colorized_distance>]
     if not bubble_list:empty() then
         local redundancies = redundant_debuff_effects()
         local target
@@ -354,9 +354,9 @@ function update_party_hud(party, player)
             end
 
             -- the leading space here seems necessary when a textbox starts with a color code
-            local member_bubble_string = (' %s%' .. max_name_length .. 's\\cr :%s%s%s%s-%s\\cr%s'):format(
+            local member_bubble_string = (' %s%' .. max_name_length .. 's\\cr %s%s%s%s-%s\\cr%s'):format(
                 member_color, member.name,
-                redundancies[effect] and '\\cs(255,0,0)(!)\\cr' or '',
+                redundancies[effect] and '\\cs(255,0,0)!\\cr' or ':',
                 bubble_enhancement_mark,
                 bubble_text_colors[effect],
                 bub.type, effect,
