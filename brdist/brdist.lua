@@ -2,11 +2,12 @@
 
 _addon.name = 'brdist'
 _addon.author = 'wes'
-_addon.version = '0.9'
+_addon.version = '0.10'
 _addon.command = 'brdist'
 
 require('functions')
 require('tables')
+math = require('math')
 texts = require('texts')
 config = require('config')
 
@@ -14,6 +15,7 @@ defaults = {}
 defaults.near_dist = 9.9
 defaults.blue_dist = 0      -- used if greater than near_dist
 defaults.max_cast_coloring = true
+defaults.avatar_centred = false
 defaults.interval = 0.2
 defaults.side = 'left'
 defaults.ally = true
@@ -53,13 +55,16 @@ dist.target = texts.new('', {
 
 function update_texts()
     local party = windower.ffxi.get_party()
+    local player = windower.ffxi.get_player()
+    local target = windower.ffxi.get_mob_by_index(player and player.target_index or 0)
+    local pet
+    if settings.avatar_centred and player.main_job == 'SMN' then
+        pet = windower.ffxi.get_mob_by_target('pet')
+    end
 
     for text, key in dist:it() do
         if key == 'target' then
             if settings.target_dist then
-
-                local player = windower.ffxi.get_player()
-                local target = windower.ffxi.get_mob_by_index(player and player.target_index or 0)
 
                 if target and target.valid_target then
 
@@ -84,7 +89,14 @@ function update_texts()
             local member = party[key]
             if member and member.mob and member.mob.valid_target then
 
-                local member_dist = member.mob.distance:sqrt()
+                local member_dist
+                if settings.avatar_centred and player.main_job == 'SMN'
+                and pet and pet.valid_target
+                and key:startswith('p') then
+                    member_dist = math.sqrt((member.mob.x-pet.x)^2 + (member.mob.y-pet.y)^2 + (member.mob.z-pet.z)^2)
+                else
+                    member_dist = member.mob.distance:sqrt()
+                end
 
                 if member_dist < settings.near_dist then
                     text:color(255, 255, 255)
